@@ -192,7 +192,7 @@ class _CreateVmDialogState extends State<CreateVmDialog> {
   Widget build(BuildContext context) => AlertDialog(
     backgroundColor: const Color(0xFF171A25), title: const Text('New VM profile'),
     content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      TextField(controller: _nameController, autofocus: true, decoration: const InputDecoration(labelText: 'Profile name', hintText: 'Ubuntu test VM')),
+      TextField(controller: _nameController, autofocus: true, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: 'Profile name', hintText: 'Ubuntu test VM')),
       const SizedBox(height: 12),
       DropdownButtonFormField<GuestOs>(value: _os, decoration: const InputDecoration(labelText: 'Guest OS'), items: const [
         DropdownMenuItem(value: GuestOs.linux, child: Text('Linux')), DropdownMenuItem(value: GuestOs.other, child: Text('Other / experimental')),
