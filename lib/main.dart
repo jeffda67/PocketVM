@@ -70,7 +70,7 @@ class _VmHomePageState extends State<VmHomePage> {
       if (image == null || !mounted) return;
       setState(() => _profiles = _profiles.map((item) => item.id == profile.id ? item.copyWith(imagePath: image.path, imageName: image.name) : item).toList());
       await _save();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image copied: ${image.name}'));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image copied: ${image.name}')));
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $error')));
     }
