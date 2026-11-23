@@ -1,39 +1,24 @@
 # PocketVM
 
-PocketVM is an experimental iOS virtual-machine manager inspired by UTM and Henge. The app currently provides a **local VM profile manager UI**, not a VM execution engine.
+Experimental iOS VM manager. Currently a profile manager with image attachment/import, not a VM execution engine.
 
 ## Implemented
 - Dark purple/blue Flutter dashboard
-- Create VM profiles with guest type, RAM, virtual CPU count, and virtual disk size fields
-- Save/load profiles locally using SharedPreferences
-- Delete profiles
-- UI-only running/stopped state toggle (does **not** boot a guest)
+- VM profiles (OS type, RAM, virtual CPU, disk-size metadata)
+- Local profile persistence and deletion
+- Simulated run-state toggle (does not boot)
+- Import supported image files into app Documents storage and attach them to a profile
 
-## Planned / research
-- Import ISO and disk images
-- ARM64 Linux guest execution engine
-- VM console and keyboard/mouse input
-- JIT execution research, including iOS platform and distribution limitations
-- macOS guest feasibility (advanced research)
+## Image import
+File picker accepts ISO, IMG, RAW, QCOW2, and VMDK. Imported files are copied into Documents/vm_images. Files are only stored and linked to profile metadata; they are not mounted or booted.
+
+## Roadmap
+- ARM64 Linux VM engine
+- Console and guest input
+- JIT research and iOS restrictions
+- macOS guest feasibility research
 
 ## Development on Linux
-1. Install Flutter SDK on Linux.
-2. Clone this repository.
-3. Run `flutter pub get`.
-4. Run `flutter run` on a supported target.
+Install Flutter, clone the repository, run `flutter pub get`, then `flutter run` on a supported target. iOS IPA builds require macOS/cloud macOS and signing.
 
-iOS IPA builds require a macOS build environment (e.g. a cloud macOS CI service) and appropriate signing for installation/distribution.
-
-## Current status
-- [x] Flutter app shell
-- [x] VM profile model
-- [x] Local profile persistence
-- [x] Profile create/delete UI
-- [x] Simulated run-state toggle
-- [ ] VM engine / actual guest execution
-- [ ] Image import
-- [ ] Console and guest input
-- [ ] JIT prototype
-- [ ] macOS guest research
-
-**Transparency:** profile RAM/CPU/disk fields are saved metadata only; no resources are reserved, no virtual disk is created, and no operating system boots yet.
+**Current limitation:** Profile settings do not reserve resources or create a virtual disk. Actual guest execution is not implemented.
