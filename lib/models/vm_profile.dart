@@ -11,6 +11,8 @@ class VmProfile {
     required this.cpuCount,
     required this.diskGb,
     this.isRunning = false,
+    this.imagePath,
+    this.imageName,
   });
 
   final String id;
@@ -20,6 +22,8 @@ class VmProfile {
   final int cpuCount;
   final int diskGb;
   final bool isRunning;
+  final String? imagePath;
+  final String? imageName;
 
   VmProfile copyWith({bool? isRunning}) => VmProfile(
         id: id,
@@ -31,7 +35,9 @@ class VmProfile {
         isRunning: isRunning ?? this.isRunning,
       );
 
-  Map<String, Object> toJson() => {
+  VmProfile copyWith({bool? isRunning, String? imagePath, String? imageName}) => VmProfile(id: id, name: name, os: os, ramMb: ramMb, cpuCount: cpuCount, diskGb: diskGb, isRunning: isRunning ?? this.isRunning, imagePath: imagePath ?? this.imagePath, imageName: imageName ?? this.imageName);
+
+  Map<String, Object?> toJson() => {
         'id': id,
         'name': name,
         'os': os.name,
@@ -39,6 +45,8 @@ class VmProfile {
         'cpuCount': cpuCount,
         'diskGb': diskGb,
         'isRunning': isRunning,
+        'imagePath': imagePath,
+        'imageName': imageName,
       };
 
   factory VmProfile.fromJson(Map<String, dynamic> json) => VmProfile(
@@ -52,6 +60,8 @@ class VmProfile {
         cpuCount: json['cpuCount'] as int,
         diskGb: json['diskGb'] as int,
         isRunning: json['isRunning'] as bool? ?? false,
+        imagePath: json['imagePath'] as String?,
+        imageName: json['imageName'] as String?,
       );
 
   static String encodeList(List<VmProfile> profiles) =>
