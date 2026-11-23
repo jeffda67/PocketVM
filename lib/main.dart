@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'models/vm_profile.dart';
 import 'services/vm_profile_store.dart';
+import 'services/vm_image_importer.dart';
 
 void main() => runApp(const PocketVmApp());
 
@@ -33,6 +34,7 @@ class VmHomePage extends StatefulWidget {
 
 class _VmHomePageState extends State<VmHomePage> {
   final _store = VmProfileStore();
+  final _imageImporter = VmImageImporter();
   List<VmProfile> _profiles = [];
   bool _loading = true;
 
@@ -62,6 +64,18 @@ class _VmHomePageState extends State<VmHomePage> {
     await _save();
   }
 
+  Future<void> _importImage(VmProfile profile) async {
+    try {
+      final image = await _imageImporter.pickAndCopyImage();
+      if (image == null || !mounted) return;
+      setState(() => _profiles = _profiles.map((item) => item.id == profile.id ? item.copyWith(imagePath: image.path, imageName: image.name) : item).toList());
+      await _save();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image copied: ${image.name}'));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $error'));
+    }
+  }
+
   Future<void> _deleteProfile(VmProfile profile) async {
     setState(() => _profiles = _profiles.where((item) => item.id != profile.id).toList());
     await _save();
@@ -89,7 +103,7 @@ class _VmHomePageState extends State<VmHomePage> {
           if (_profiles.isEmpty) _EmptyState(onCreate: _createProfile) else ...[
             const Text('Your profiles', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
-            ..._profiles.map((profile) => VmProfileCard(profile: profile, onToggle: () => _toggleRunState(profile), onDelete: () => _deleteProfile(profile))),
+            ..._profiles.map((profile) => VmProfileCard(profile: profile, onToggle: () => _toggleRunState(profile), onDelete: () => _deleteProfile(profile), onImportImage: () => _importImage(profile))),
           ],
           const SizedBox(height: 24),
           const Text('Engine roadmap', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
@@ -136,9 +150,9 @@ class _EmptyState extends StatelessWidget {
 }
 
 class VmProfileCard extends StatelessWidget {
-  const VmProfileCard({required this.profile, required this.onToggle, required this.onDelete});
+  const VmProfileCard({required this.profile, required this.onToggle, required this.onDelete, required this.onImportImage});
   final VmProfile profile;
-  final VoidCallback onToggle, onDelete;
+  final VoidCallback onToggle, onDelete, onImportImage;
   @override
   Widget build(BuildContext context) => Card(color: const Color(0xFF171A25), margin: const EdgeInsets.only(bottom: 10), child: Padding(
     padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -149,7 +163,10 @@ class VmProfileCard extends StatelessWidget {
       ]),
       const SizedBox(height: 10),
       Text('${profile.os == GuestOs.linux ? 'Linux' : 'Other OS'}  •  ${profile.ramMb} MB RAM  •  ${profile.cpuCount} CPU  •  ${profile.diskGb} GB disk', style: TextStyle(color: Colors.white.withOpacity(.65), fontSize: 12)),
-      const SizedBox(height: 12),
+      const SizedBox(height: 8),
+      Text(profile.imageName ?? 'No image attached', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white54, fontSize: 12)),
+      OutlinedButton.icon(onPressed: onImportImage, icon: const Icon(Icons.file_open), label: Text(profile.imageName == null ? 'Import ISO / disk image' : 'Replace image')),
+      const SizedBox(height: 8),
       Row(children: [
         Expanded(child: OutlinedButton.icon(onPressed: onToggle, icon: Icon(profile.isRunning ? Icons.stop : Icons.play_arrow), label: Text(profile.isRunning ? 'Mark stopped' : 'Mark running'))),
         IconButton(onPressed: onDelete, icon: const Icon(Icons.delete_outline), tooltip: 'Delete profile'),
