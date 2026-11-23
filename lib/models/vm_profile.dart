@@ -25,16 +25,6 @@ class VmProfile {
   final String? imagePath;
   final String? imageName;
 
-  VmProfile copyWith({bool? isRunning}) => VmProfile(
-        id: id,
-        name: name,
-        os: os,
-        ramMb: ramMb,
-        cpuCount: cpuCount,
-        diskGb: diskGb,
-        isRunning: isRunning ?? this.isRunning,
-      );
-
   VmProfile copyWith({bool? isRunning, String? imagePath, String? imageName}) => VmProfile(id: id, name: name, os: os, ramMb: ramMb, cpuCount: cpuCount, diskGb: diskGb, isRunning: isRunning ?? this.isRunning, imagePath: imagePath ?? this.imagePath, imageName: imageName ?? this.imageName);
 
   Map<String, Object?> toJson() => {
