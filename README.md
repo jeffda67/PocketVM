@@ -1,24 +1,64 @@
 # PocketVM
 
-Experimental iOS VM manager. Currently a profile manager with image attachment/import, not a VM execution engine.
+Experimental iOS VM profile manager built with React Native, Expo and TypeScript. Development is supported on Linux; iOS builds can be produced with EAS Build in the cloud.
 
-## Implemented
-- Dark purple/blue Flutter dashboard
-- VM profiles (OS type, RAM, virtual CPU, disk-size metadata)
-- Local profile persistence and deletion
-- Simulated run-state toggle (does not boot)
-- Import supported image files into app Documents storage and attach them to a profile
+## Current prototype
 
-## Image import
-File picker accepts ISO, IMG, RAW, QCOW2, and VMDK. Imported files are copied into Documents/vm_images. Files are only stored and linked to profile metadata; they are not mounted or booted.
+- Dark neon-blue/purple PocketVM dashboard
+- Create VM profiles with guest OS, RAM, CPU and virtual disk size
+- Profiles saved locally with AsyncStorage
+- Attach an image file name to a VM profile through the system file picker
+- Delete profiles
+- Clearly labels start/stop as not connected to a VM engine yet
 
-## Roadmap
-- ARM64 Linux VM engine
-- Console and guest input
-- JIT research and iOS restrictions
-- macOS guest feasibility research
+> **Important:** This prototype is a profile manager only. It does not boot virtual machines, emulate hardware, or implement JIT. The actual native virtualization backend is a separate research/development milestone, especially for iOS.
 
-## Development on Linux
-Install Flutter, clone the repository, run `flutter pub get`, then `flutter run` on a supported target. iOS IPA builds require macOS/cloud macOS and signing.
+## Stack
 
-**Current limitation:** Profile settings do not reserve resources or create a virtual disk. Actual guest execution is not implemented.
+- React Native
+- Expo SDK 54
+- TypeScript
+- AsyncStorage
+- Expo Document Picker
+
+## Run on Linux
+
+Install Node.js (LTS) and npm, then from the project directory:
+
+```bash
+npm install
+npx expo start
+```
+
+Scan the QR code using Expo Go, or run the app in an Android emulator.
+
+Type check:
+
+```bash
+npm run typecheck
+```
+
+## Cloud iOS build
+
+Install EAS CLI, authenticate, and configure the project:
+
+```bash
+npm install
+npx eas-cli login
+npx eas-cli build:configure
+npx eas-cli build --platform ios --profile production
+```
+
+A distribution IPA requires appropriate Apple signing/account setup. Cloud building removes the need to own a Mac for compilation, but it does not bypass Apple's signing or iOS virtualization restrictions.
+
+## Next milestones
+
+1. Verify the app on Android/Expo Go and fix issues.
+2. Improve image import to copy/manage guest image files safely and show metadata.
+3. Research native ARM64 Linux virtualization options and iOS entitlement/JIT limitations.
+4. Design a native engine interface and integrate only when a feasible backend is identified.
+5. Evaluate macOS guest support separately.
+
+## Project
+
+PocketVM is experimental. No VM engine has been integrated yet.
