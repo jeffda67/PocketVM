@@ -72,7 +72,7 @@ class _VmHomePageState extends State<VmHomePage> {
       await _save();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image copied: ${image.name}'));
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $error'));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $error')));
     }
   }
 
