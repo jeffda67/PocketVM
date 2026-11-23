@@ -50,7 +50,7 @@ export default function App() {
   };
   const removeVM = (id: string) => Alert.alert('Delete profile?', 'This removes the saved VM profile.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => setVms(old => old.filter(v => v.id !== id)) }]);
   const toggleVM = (vm: VM) => Alert.alert('VM engine not connected', `\\"${vm.name}\\" is saved as a profile, but guest boot is not implemented yet.`);
-  const resetProfiles = () => Alert.alert('Delete all VM profiles?', 'This permanently clears all saved profiles from this app.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete all', style: 'destructive', onPress: async () => { setVms([]); await AsyncStorage.removeItem(STORAGE_KEY); } }];
+  const resetProfiles = () => Alert.alert('Delete all VM profiles?', 'This permanently clears all saved profiles from this app.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete all', style: 'destructive', onPress: async () => { setVms([]); await AsyncStorage.removeItem(STORAGE_KEY); } }]);
   const Card = ({vm}: {vm:VM}) => (
     <View style={styles.card}>
       <View style={styles.cardHead}><View style={styles.osIcon}><Text style={styles.iconText}>▣</Text></View><View style={{flex:1}}><Text style={styles.vmName}>{vm.name}</Text><Text style={styles.subtitle}>{vm.os}</Text></View><View style={styles.badge}><Text style={styles.badgeText}>{vm.status}</Text></View></View>
