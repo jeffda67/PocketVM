@@ -1,0 +1,78 @@
+import React, { useEffect, useState } from 'react';
+import { Alert, Modal, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as DocumentPicker from 'expo-document-picker';
+
+type VM = { id: string; name: string; os: string; ram: number; cpu: number; disk: number; image?: string; status: 'Stopped' | 'Running' };
+const STORAGE_KEY = 'pocketvm.profiles.v1';
+const initial: VM[] = [];
+
+export default function App() {
+  const [vms, setVms] = useState<VM[]>(initial);
+  const [loaded, setLoaded] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [name, setName] = useState('My Linux VM');
+  const [ram, setRam] = useState('2048');
+  const [cpu, setCpu] = useState('2');
+  const [disk, setDisk] = useState('16');
+  const [guest, setGuest] = useState('Linux ARM64');
+  const [selectedTab, setSelectedTab] = useState('Machines');
+
+  useEffect(() => { AsyncStorage.getItem(STORAGE_KEY).then(raw => { if (raw) setVms(JSON.parse(raw)); }).finally(() => setLoaded(true)); }, []);
+  useEffect(() => { if (loaded) AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(vms)).catch(() => Alert.alert('Save error', 'Could not save VM profiles.')); }, [vms, loaded]);
+
+  const createVM = () => {
+    const vm: VM = { id: Date.now().toString(), name: name.trim() || 'New VM', os: guest, ram: Number(ram) || 1024, cpu: Number(cpu) || 1, disk: Number(disk) || 8, status: 'Stopped' };
+    setVms(old => [vm, ...old]); setShowCreate(false); setName('My Linux VM');
+  };
+  const importImage = async (id: string) => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: ['application/octet-stream','*/*'], copyToCacheDirectory: true });
+      if (!result.canceled) {
+        const file = result.assets[0];
+        setVms(old => old.map(vm => vm.id === id ? { ...vm, image: file.name } : vm));
+        Alert.alert('Image attached', file.name + '\n\nPocketVM saved the image name to this profile. VM execution is not implemented yet.');
+      }
+    } catch { Alert.alert('Import failed', 'Could not pick a file.'); }
+  };
+  const removeVM = (id: string) => Alert.alert('Delete profile?', 'This removes the saved VM profile.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => setVms(old => old.filter(v => v.id !== id)) }]);
+  const toggleVM = (vm: VM) => Alert.alert('Virtualization not connected yet', 'This is currently a profile/dashboard build. The native VM engine is a future development milestone.');
+  const Card = ({vm}: {vm:VM}) => (
+    <View style={styles.card}>
+      <View style={styles.cardHead}><View style={styles.osIcon}><Text style={styles.iconText}>▣</Text></View><View style={{flex:1}}><Text style={styles.vmName}>{vm.name}</Text><Text style={styles.subtitle}>{vm.os}</Text></View><View style={styles.badge}><Text style={styles.badgeText}>{vm.status}</Text></View></View>
+      <View style={styles.stats}><Stat label="MEMORY" value={vm.ram >= 1024 ? (vm.ram/1024).toFixed(vm.ram%1024?1:0)+' GB' : vm.ram+' MB'}/><Stat label="CPU" value={vm.cpu+' cores'}/><Stat label="DISK" value={vm.disk+' GB'}/></View>
+      <View style={styles.imageRow}><Text style={styles.imageLabel} numberOfLines={1}>{vm.image || 'No boot image attached'}</Text><TouchableOpacity style={styles.attachButton} onPress={() => importImage(vm.id)}><Text style={styles.attachText}>{vm.image ? 'Change' : 'Import image'}</Text></TouchableOpacity></View>
+      <View style={styles.actions}><TouchableOpacity style={styles.startButton} onPress={() => toggleVM(vm)}><Text style={styles.startText}>▶  Start VM</Text></TouchableOpacity><TouchableOpacity style={styles.deleteButton} onPress={() => removeVM(vm.id)}><Text style={styles.deleteText}>⌫</Text></TouchableOpacity></View>
+    </View>
+  );
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="light-content" />
+      <ScrollView contentContainerStyle={styles.page}>
+        <View style={styles.top}><View style={styles.logo}><Text style={styles.logoText}>P</Text></View><View style={{flex:1}}><Text style={styles.brand}>PocketVM</Text><Text style={styles.tagline}>Virtual machines. In your pocket.</Text></View><View style={styles.statusDot}/></View>
+        <View style={styles.hero}><Text style={styles.eyebrow}>VIRTUALIZATION LAB  /  PREVIEW</Text><Text style={styles.heroTitle}>Your machines.{ '\n'}Your rules.</Text><Text style={styles.heroDesc}>Manage your virtual machine profiles from one clean workspace.</Text><View style={styles.heroBottom}><View><Text style={styles.number}>{vms.length.toString().padStart(2,'0')}</Text><Text style={styles.heroLabel}>MACHINES</Text></View><TouchableOpacity style={styles.newButton} onPress={() => setShowCreate(true)}><Text style={styles.newButtonText}>＋  New VM</Text></TouchableOpacity></View>
+        <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Machines</Text><Text style={styles.count}>{vms.length} PROFILE{vms.length===1?'':'S'}</Text></View>
+        {vms.length === 0 ? <View style={styles.empty}><Text style={styles.emptyIcon}>⌘</Text><Text style={styles.emptyTitle}>No machines yet</Text><Text style={styles.emptyDesc}>Create your first VM profile to get your workspace started.</Text><TouchableOpacity style={styles.emptyButton} onPress={() => setShowCreate(true)}><Text style={styles.newButtonText}>Create first machine</Text></TouchableOpacity></View> : vms.map(vm => <Card key={vm.id} vm={vm}/>)}
+        <View style={styles.notice}><Text style={styles.noticeTitle}>ENGINE STATUS  ·  IN DEVELOPMENT</Text><Text style={styles.noticeText}>Profiles and local saving work in this prototype. Actual guest booting, hardware virtualization, and JIT are not connected yet.</Text></View>
+        <Text style={styles.footer}>POCKETVM  •  BUILD 0.2.0  •  EXPERIMENTAL</Text>
+      </ScrollView>
+      <View style={styles.tabBar}><TouchableOpacity onPress={() => setSelectedTab('Machines')}><Text style={[styles.tab,selectedTab==='Machines'&&styles.activeTab]}>▣  Machines</Text></TouchableOpacity><TouchableOpacity onPress={() => setSelectedTab('Settings')}><Text style={[styles.tab,selectedTab==='Settings'&&styles.activeTab]}>⚙  Settings</Text></TouchableOpacity></View>
+      <Modal visible={showCreate} animationType="slide" transparent onRequestClose={() => setShowCreate(false)}><View style={styles.modalShade}><ScrollView style={styles.modal}><Text style={styles.modalEyebrow}>CONFIGURE INSTANCE</Text><Text style={styles.modalTitle}>Create VM</Text><Field label="MACHINE NAME" value={name} onChange={setName}/><Field label="GUEST OS" value={guest} onChange={setGuest}/><View style={styles.inputRow}><View style={{flex:1}}><Field label="RAM (MB)" value={ram} onChange={setRam} keyboard="numeric"/></View><View style={{flex:1}}><Field label="CPU CORES" value={cpu} onChange={setCpu} keyboard="numeric"/></View></View><Field label="DISK (GB)" value={disk} onChange={setDisk} keyboard="numeric"/><TouchableOpacity style={styles.createButton} onPress={createVM}><Text style={styles.createButtonText}>Create profile</Text></TouchableOpacity><TouchableOpacity onPress={() => setShowCreate(false)} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity></ScrollView></View></Modal>
+    </SafeAreaView>
+  );
+}
+function Stat({label,value}: {label:string;value:string}) { return <View style={styles.stat}><Text style={styles.statLabel}>{label}</Text><Text style={styles.statValue}>{value}</Text></View>; }
+function Field({label,value,onChange,keyboard}: {label:string;value:string;onChange:(s:string)=>void;keyboard?:'numeric'}) { return <View style={styles.field}><Text style={styles.fieldLabel}>{label}</Text><TextInput style={styles.fieldInput} value={value} onChangeText={onChange} keyboardType={keyboard||'default'} placeholderTextColor="#697187"/></View>; }
+const styles = StyleSheet.create({
+ safe:{flex:1,backgroundColor:'#070911'},page:{paddingHorizontal:20,paddingTop:12,paddingBottom:112},
+ top:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:28},logo:{width:42,height:42,borderRadius:13,backgroundColor:'#141c32',borderWidth:1,borderColor:'#3547a2',alignItems:'center',justifyContent:'center'},logoText:{fontSize:23,fontWeight:'900',color:'#89a4ff'},brand:{color:'#f3f5ff',fontSize:18,fontWeight:'800',letterSpacing:0.4},tagline:{color:'#747f9b',fontSize:12,marginTop:2},statusDot:{width:9,height:9,borderRadius:5,backgroundColor:'#7c91ff'},
+ hero:{borderRadius:24,borderWidth:1,borderColor:'#2b365b',backgroundColor:'#11182a',padding:22,marginBottom:30},eyebrow:{fontSize:10,color:'#8b9eff',letterSpacing:2,fontWeight:'700'},heroTitle:{color:'#f5f6ff',fontSize:34,fontWeight:'900',lineHeight:39,marginTop:16},heroDesc:{color:'#929db8',fontSize:13,lineHeight:19,marginTop:10,maxWidth:260},heroBottom:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginTop:22},number:{fontSize:28,color:'#a6b5ff',fontWeight:'800'},heroLabel:{color:'#66728f',fontSize:9,letterSpacing:1.5,fontWeight:'700'},newButton:{backgroundColor:'#687fff',paddingHorizontal:16,paddingVertical:12,borderRadius:13},newButtonText:{color:'#fff',fontWeight:'800',fontSize:13},
+ sectionHead:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:14},sectionTitle:{color:'#f2f4ff',fontSize:21,fontWeight:'800'},count:{color:'#67738f',fontSize:10,letterSpacing:1.4,fontWeight:'700'},
+ card:{backgroundColor:'#0f1421',borderRadius:20,borderWidth:1,borderColor:'#202b42',padding:16,marginBottom:13},cardHead:{flexDirection:'row',alignItems:'center',gap:11},osIcon:{width:40,height:40,borderRadius:12,backgroundColor:'#1b2540',alignItems:'center',justifyContent:'center'},iconText:{color:'#9bacff',fontSize:18},vmName:{color:'#f2f4ff',fontSize:16,fontWeight:'800'},subtitle:{color:'#808da8',fontSize:12,marginTop:3},badge:{paddingVertical:5,paddingHorizontal:9,borderRadius:10,backgroundColor:'#202c45'},badgeText:{color:'#a5b5ff',fontSize:10,fontWeight:'700'},
+ stats:{flexDirection:'row',marginTop:17,marginBottom:15},stat:{flex:1},statLabel:{color:'#6f7c98',fontSize:9,fontWeight:'700',letterSpacing:1},statValue:{color:'#e3e7ff',fontSize:13,fontWeight:'700',marginTop:5},
+ imageRow:{borderTopWidth:1,borderTopColor:'#20283c',paddingTop:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10},imageLabel:{color:'#8c98b1',fontSize:11,flex:1},attachButton:{borderRadius:8,borderWidth:1,borderColor:'#35466e',paddingHorizontal:10,paddingVertical:6},attachText:{color:'#9cb0ff',fontSize:11,fontWeight:'700'},actions:{flexDirection:'row',gap:8,marginTop:13},startButton:{flex:1,backgroundColor:'#1a2644',borderWidth:1,borderColor:'#354a7b',borderRadius:11,alignItems:'center',paddingVertical:11},startText:{color:'#a5b6ff',fontWeight:'800',fontSize:12},deleteButton:{width:42,borderRadius:11,alignItems:'center',justifyContent:'center',backgroundColor:'#191b27'},deleteText:{color:'#818ba3'},
+ empty:{borderRadius:20,borderWidth:1,borderColor:'#222b40',borderStyle:'dashed',padding:24,alignItems:'center'},emptyIcon:{color:'#667bcb',fontSize:28},emptyTitle:{color:'#f0f2ff',fontWeight:'800',fontSize:16,marginTop:8},emptyDesc:{color:'#77839d',fontSize:12,lineHeight:18,textAlign:'center',marginTop:8},emptyButton:{marginTop:16,backgroundColor:'#536df1',paddingVertical:11,paddingHorizontal:18,borderRadius:11},
+ notice:{backgroundColor:'#111623',borderColor:'#252e43',borderWidth:1,borderRadius:15,padding:14,marginTop:20},noticeTitle:{color:'#9aa9ff',fontSize:10,fontWeight:'800',letterSpacing:1.2},noticeText:{color:'#8994ad',fontSize:11,lineHeight:17,marginTop:7},footer:{textAlign:'center',color:'#47516b',fontSize:9,letterSpacing:1.2,marginTop:23},
+ tabBar:{position:'absolute',bottom:0,left:0,right:0,backgroundColor:'#0b101b',borderTopWidth:1,borderTopColor:'#1b2333',paddingBottom:18,paddingTop:13,flexDirection:'row',justifyContent:'space-around'},tab:{color:'#64708b',fontSize:12,fontWeight:'700'},activeTab:{color:'#9bacff'},
+ modalShade:{flex:1,backgroundColor:'#000a',justifyContent:'flex-end'},modal:{backgroundColor:'#101625',borderTopLeftRadius:25,borderTopRightRadius:25,padding:24,paddingTop:30},modalEyebrow:{color:'#92a4ff',fontSize:10,letterSpacing:2,fontWeight:'800'},modalTitle:{fontSize:27,color:'#f3f5ff',fontWeight:'900',marginTop:8,marginBottom:20},field:{marginBottom:16},fieldLabel:{color:'#7d8ba8',fontSize:10,fontWeight:'800',letterSpacing:1,marginBottom:7},fieldInput:{borderWidth:1,borderColor:'#27334c',backgroundColor:'#0a0f19',borderRadius:12,padding:13,color:'#f1f3ff',fontSize:14},inputRow:{flexDirection:'row',gap:12},createButton:{backgroundColor:'#667dff',borderRadius:13,padding:15,alignItems:'center',marginTop:8},createButtonText:{color:'#fff',fontWeight:'900'},cancel:{padding:15,alignItems:'center'},cancelText:{color:'#8792ad',fontWeight:'700'}
+});
