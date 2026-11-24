@@ -7,6 +7,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 type VMImage = { uri: string; name: string; size?: number; mimeType?: string; importedAt: string; format: string };
 type VM = { id: string; name: string; os: string; ram: number; cpu: number; disk: number; image?: VMImage | string; status: 'Stopped' | 'Running' };
 const STORAGE_KEY = 'pocketvm.profiles.v1';
+const SUPPORTED_IMAGE_FORMATS = new Set(['iso', 'qcow2', 'img', 'raw', 'vhd', 'vhdx', 'vdi', 'vmdk']);
 const initial: VM[] = [];
 
 const imageUri = (image?: VMImage | string) => typeof image === 'string' ? image : image?.uri;
@@ -68,11 +69,14 @@ export default function App() {
       const folder = FileSystem.documentDirectory + 'images/';
       const folderInfo = await FileSystem.getInfoAsync(folder);
       if (!folderInfo.exists) await FileSystem.makeDirectoryAsync(folder, { intermediates: true });
+      const extension = asset.name.includes('.') ? asset.name.split('.').pop()!.toLowerCase() : 'unknown';
+      if (!SUPPORTED_IMAGE_FORMATS.has(extension)) {
+        throw new Error('Unsupported file type. Choose ISO, QCOW2, IMG, RAW, VHD, VHDX, VDI, or VMDK.');
+      }
       const safeName = asset.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const target = folder + Date.now() + '_' + safeName;
       await FileSystem.copyAsync({ from: asset.uri, to: target });
       const previous = vms.find(vm => vm.id === id)?.image;
-      const extension = asset.name.includes('.') ? asset.name.split('.').pop()!.toLowerCase() : 'unknown';
       const imported: VMImage = {
         uri: target,
         name: asset.name,
@@ -110,7 +114,7 @@ export default function App() {
     <View style={styles.card}>
       <View style={styles.cardHead}><View style={styles.osIcon}><Text style={styles.iconText}>▣</Text></View><View style={{flex:1}}><Text style={styles.vmName}>{vm.name}</Text><Text style={styles.subtitle}>{vm.os}</Text></View><View style={styles.badge}><Text style={styles.badgeText}>{vm.status}</Text></View></View>
       <View style={styles.stats}><Stat label="MEMORY" value={vm.ram >= 1024 ? (vm.ram/1024).toFixed(vm.ram%1024?1:0)+' GB' : vm.ram+' MB'}/><Stat label="CPU" value={vm.cpu+' cores'}/><Stat label="DISK" value={vm.disk+' GB'}/></View>
-      <View style={styles.imageRow}><View style={{flex:1}}><Text style={styles.imageLabel} numberOfLines={1}>{imageName(vm.image)}</Text>{vm.image ? <Text style={styles.imageMeta}>{imageMeta(vm.image)}</Text> : <Text style={styles.imageMeta}>ISO / QCOW2 / RAW / VHDX</Text>}</View><TouchableOpacity style={styles.attachButton} onPress={() => importImage(vm.id)}><Text style={styles.attachText}>{vm.image ? 'Replace' : 'Import file'}</Text></TouchableOpacity>{vm.image ? <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(vm.id)}><Text style={styles.removeImageText}>Remove</Text></TouchableOpacity> : null}</View>
+      <View style={styles.imageRow}><View style={{flex:1}}><Text style={styles.imageLabel} numberOfLines={1}>{imageName(vm.image)}</Text>{vm.image ? <Text style={styles.imageMeta}>{imageMeta(vm.image)}</Text> : <Text style={styles.imageMeta}>ISO / QCOW2 / IMG / RAW / VHDX / VDI / VMDK</Text>}</View><TouchableOpacity style={styles.attachButton} onPress={() => importImage(vm.id)}><Text style={styles.attachText}>{vm.image ? 'Replace' : 'Import file'}</Text></TouchableOpacity>{vm.image ? <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(vm.id)}><Text style={styles.removeImageText}>Remove</Text></TouchableOpacity> : null}</View>
       <View style={styles.actions}><TouchableOpacity style={styles.startButton} onPress={() => toggleVM(vm)}><Text style={styles.startText}>▶  Start VM</Text></TouchableOpacity><TouchableOpacity style={styles.editButton} onPress={() => editVM(vm)}><Text style={styles.editText}>Edit</Text></TouchableOpacity><TouchableOpacity style={styles.deleteButton} onPress={() => removeVM(vm.id)}><Text style={styles.deleteText}>⌫</Text></TouchableOpacity></View>
     </View>
   );
