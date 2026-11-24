@@ -7,7 +7,8 @@ Experimental iOS VM profile manager built with React Native, Expo and TypeScript
 - Dark neon-blue/purple PocketVM dashboard
 - Create VM profiles with guest OS, RAM, CPU and virtual disk size
 - Profiles saved locally with AsyncStorage
-- Attach an image file name to a VM profile through the system file picker
+- Import an ISO or virtual disk file into PocketVM's private app storage, with filename, extension, MIME type, size, and import time saved in the VM profile
+- Replace or remove imported files; deleting a VM also removes its managed image copy
 - Delete profiles
 - Clearly labels start/stop as not connected to a VM engine yet
 
@@ -37,6 +38,10 @@ Type check:
 ```bash
 npm run typecheck
 ```
+
+## Virtualization feasibility
+
+See [docs/virtualization-roadmap.md](docs/virtualization-roadmap.md) for the researched iOS/Android backend direction, JIT constraints, and macOS guest limitations. The current app still does not boot guests.
 
 ## Cloud iOS build
 
