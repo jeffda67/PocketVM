@@ -13,10 +13,10 @@ For iOS, the realistic baseline is a **JIT-less interpreter/emulation mode**, no
 
 ### iOS
 
-- Apple's public Virtualization framework documentation describes creating Linux and macOS VMs on Apple silicon and Intel **Mac computers**. It is not an iOS VM API: https://developer.apple.com/documentation/virtualization.
+- Apple's public Virtualization framework is a Mac API, not an iOS VM API. It supports Linux guests on Apple silicon and Intel Macs; Apple's documented macOS-guest path is specifically for Apple silicon Macs: https://developer.apple.com/documentation/virtualization and https://developer.apple.com/documentation/virtualization/virtualize-macos-on-a-mac.
 - UTM's architecture notes explicitly say that Apple's Hypervisor.framework is not available on iOS. UTM uses QEMU for iOS and has a custom ARM64 TCTI path for JIT-less execution: https://github.com/utmapp/UTM/blob/main/Documentation/Architecture.md.
 - UTM's iOS installation guide distinguishes its JIT-enabled sideloaded build from UTM SE, which uses a slower interpreter and does not require JIT. It also notes that JIT availability depends on the device, iOS version, and JIT-enabling/signing method: https://docs.getutm.app/installation/ios/.
-- Apple's platform security documentation explains that writable-and-executable memory is tightly controlled on iOS/iPadOS and uses an Apple-only dynamic-code-signing entitlement: https://support.apple.com/guide/security/security-of-runtime-process-in-ios-ipados-and-visionos-sec15bfe098e/web.
+- Apple's platform security documentation explains that writable-and-executable memory is tightly controlled on iOS/iPadOS and uses an Apple-only dynamic-code-signing entitlement: https://support.apple.com/en-ae/guide/security/sec15bfe098e/1/web.
 - Therefore, an ordinary App Store-compatible IPA must not assume it can generate executable code at runtime. A profile saying "ARM64" does not mean the guest can run at native speed.
 
 **PocketVM decision:** first target an interpreter-backed QEMU ARM64 system emulator, and benchmark it before promising usable desktop performance. Do not design the app around a private entitlement or a JIT workaround.
@@ -64,7 +64,8 @@ QEMU and UTM contain components under multiple open-source licenses. Before copy
 ## Sources
 
 - Apple Virtualization framework: https://developer.apple.com/documentation/virtualization
-- Apple platform runtime security: https://support.apple.com/guide/security/security-of-runtime-process-in-ios-ipados-and-visionos-sec15bfe098e/web
+- Apple macOS guest support: https://developer.apple.com/documentation/virtualization/virtualize-macos-on-a-mac
+- Apple platform runtime security: https://support.apple.com/en-ae/guide/security/sec15bfe098e/1/web
 - UTM architecture: https://github.com/utmapp/UTM/blob/main/Documentation/Architecture.md
 - UTM iOS installation/JIT matrix: https://docs.getutm.app/installation/ios/
 - QEMU TCG internals: https://www.qemu.org/docs/master/devel/tcg.html
