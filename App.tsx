@@ -4,9 +4,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 
-type VM = { id: string; name: string; os: string; ram: number; cpu: number; disk: number; image?: string; status: 'Stopped' | 'Running' };
+type VMImage = { uri: string; name: string; size?: number; mimeType?: string; importedAt: string; format: string };
+type VM = { id: string; name: string; os: string; ram: number; cpu: number; disk: number; image?: VMImage | string; status: 'Stopped' | 'Running' };
 const STORAGE_KEY = 'pocketvm.profiles.v1';
 const initial: VM[] = [];
+
+const imageUri = (image?: VMImage | string) => typeof image === 'string' ? image : image?.uri;
+const imageName = (image?: VMImage | string) => !image ? 'No boot image attached' : typeof image === 'string' ? image.split('/').pop() || 'Imported image' : image.name;
+const formatBytes = (bytes?: number) => {
+  if (!bytes || !Number.isFinite(bytes) || bytes <= 0) return 'Size unavailable';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = bytes, unit = 0;
+  while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
+  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+};
+const imageMeta = (image: VMImage | string) => typeof image === 'string'
+  ? 'Older attachment · stored path'
+  : `${image.format.toUpperCase()} · ${formatBytes(image.size)} · saved in app storage`;
 
 export default function App() {
   const [vms, setVms] = useState<VM[]>(initial);
@@ -33,29 +47,70 @@ export default function App() {
     setShowCreate(false); setEditingId(null); setName('My Linux VM'); setRam('2048'); setCpu('2'); setDisk('16'); setGuest('Linux ARM64');
   };
   const editVM = (vm: VM) => { setEditingId(vm.id); setName(vm.name); setGuest(vm.os); setRam(String(vm.ram)); setCpu(String(vm.cpu)); setDisk(String(vm.disk)); setShowCreate(true); };
+  const removeStoredImage = async (image?: VMImage | string) => {
+    const uri = imageUri(image);
+    const folder = FileSystem.documentDirectory ? FileSystem.documentDirectory + 'images/' : null;
+    // Never delete a URI outside PocketVM's own image directory.
+    if (!uri || !folder || !uri.startsWith(folder)) return;
+    try {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (info.exists) await FileSystem.deleteAsync(uri, { idempotent: true });
+    } catch {
+      Alert.alert('Storage cleanup warning', 'PocketVM could not remove an old image file.');
+    }
+  };
   const importImage = async (id: string) => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        const folder = (FileSystem.documentDirectory || '') + 'images/';
-        await FileSystem.makeDirectoryAsync(folder, { intermediates: true }).catch(() => {});
-        const safeName = asset.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const target = folder + Date.now() + '_' + safeName;
-        await FileSystem.copyAsync({ from: asset.uri, to: target });
-        setVms(old => old.map(vm => vm.id === id ? { ...vm, image: target } : vm));
-        Alert.alert('Image imported', asset.name + '\nCopied into PocketVM app storage. This is stored as a file; guest boot is not implemented yet.');
-      }
-    } catch (error) { Alert.alert('Import failed', error instanceof Error ? error.message : 'Could not copy the selected file.'); }
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true, multiple: false });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      if (!FileSystem.documentDirectory) throw new Error('PocketVM app storage is unavailable on this device.');
+      const folder = FileSystem.documentDirectory + 'images/';
+      const folderInfo = await FileSystem.getInfoAsync(folder);
+      if (!folderInfo.exists) await FileSystem.makeDirectoryAsync(folder, { intermediates: true });
+      const safeName = asset.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const target = folder + Date.now() + '_' + safeName;
+      await FileSystem.copyAsync({ from: asset.uri, to: target });
+      const previous = vms.find(vm => vm.id === id)?.image;
+      const extension = asset.name.includes('.') ? asset.name.split('.').pop()!.toLowerCase() : 'unknown';
+      const imported: VMImage = {
+        uri: target,
+        name: asset.name,
+        size: asset.size,
+        mimeType: asset.mimeType,
+        importedAt: new Date().toISOString(),
+        format: extension,
+      };
+      setVms(old => old.map(vm => vm.id === id ? { ...vm, image: imported } : vm));
+      await removeStoredImage(previous);
+      Alert.alert('File imported', asset.name + '\\nA private copy and its file details are saved in PocketVM. Guest boot is not implemented yet.');
+    } catch (error) {
+      Alert.alert('Import failed', error instanceof Error ? error.message : 'Could not copy the selected file.');
+    }
   };
-  const removeVM = (id: string) => Alert.alert('Delete profile?', 'This removes the saved VM profile.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => setVms(old => old.filter(v => v.id !== id)) }]);
+  const removeImage = (id: string) => Alert.alert('Remove attached image?', 'This deletes PocketVM’s private copy of the attached file.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Remove', style: 'destructive', onPress: async () => {
+      const vm = vms.find(item => item.id === id);
+      await removeStoredImage(vm?.image);
+      setVms(old => old.map(item => item.id === id ? { ...item, image: undefined } : item));
+    } },
+  ]);
+  const removeVM = (id: string) => Alert.alert('Delete profile?', 'This removes the saved VM profile and its imported image file.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: async () => {
+      const vm = vms.find(item => item.id === id);
+      await removeStoredImage(vm?.image);
+      setVms(old => old.filter(item => item.id !== id));
+    } },
+  ]);
   const toggleVM = (vm: VM) => Alert.alert('VM engine not connected', `\\"${vm.name}\\" is saved as a profile, but guest boot is not implemented yet.`);
-  const resetProfiles = () => Alert.alert('Delete all VM profiles?', 'This permanently clears all saved profiles from this app.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete all', style: 'destructive', onPress: async () => { setVms([]); await AsyncStorage.removeItem(STORAGE_KEY); } }]);
+  const resetProfiles = () => Alert.alert('Delete all VM profiles?', 'This permanently clears all saved profiles and their imported image files from this app.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete all', style: 'destructive', onPress: async () => { await Promise.all(vms.map(vm => removeStoredImage(vm.image))); setVms([]); await AsyncStorage.removeItem(STORAGE_KEY); } }]);
   const Card = ({vm}: {vm:VM}) => (
     <View style={styles.card}>
       <View style={styles.cardHead}><View style={styles.osIcon}><Text style={styles.iconText}>▣</Text></View><View style={{flex:1}}><Text style={styles.vmName}>{vm.name}</Text><Text style={styles.subtitle}>{vm.os}</Text></View><View style={styles.badge}><Text style={styles.badgeText}>{vm.status}</Text></View></View>
       <View style={styles.stats}><Stat label="MEMORY" value={vm.ram >= 1024 ? (vm.ram/1024).toFixed(vm.ram%1024?1:0)+' GB' : vm.ram+' MB'}/><Stat label="CPU" value={vm.cpu+' cores'}/><Stat label="DISK" value={vm.disk+' GB'}/></View>
-      <View style={styles.imageRow}><Text style={styles.imageLabel} numberOfLines={1}>{vm.image ? vm.image.split('/').pop() : 'No boot image attached'}</Text><TouchableOpacity style={styles.attachButton} onPress={() => importImage(vm.id)}><Text style={styles.attachText}>{vm.image ? 'Change' : 'Import image'}</Text></TouchableOpacity></View>
+      <View style={styles.imageRow}><View style={{flex:1}}><Text style={styles.imageLabel} numberOfLines={1}>{imageName(vm.image)}</Text>{vm.image ? <Text style={styles.imageMeta}>{imageMeta(vm.image)}</Text> : <Text style={styles.imageMeta}>ISO / QCOW2 / RAW / VHDX</Text>}</View><TouchableOpacity style={styles.attachButton} onPress={() => importImage(vm.id)}><Text style={styles.attachText}>{vm.image ? 'Replace' : 'Import file'}</Text></TouchableOpacity>{vm.image ? <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(vm.id)}><Text style={styles.removeImageText}>Remove</Text></TouchableOpacity> : null}</View>
       <View style={styles.actions}><TouchableOpacity style={styles.startButton} onPress={() => toggleVM(vm)}><Text style={styles.startText}>▶  Start VM</Text></TouchableOpacity><TouchableOpacity style={styles.editButton} onPress={() => editVM(vm)}><Text style={styles.editText}>Edit</Text></TouchableOpacity><TouchableOpacity style={styles.deleteButton} onPress={() => removeVM(vm.id)}><Text style={styles.deleteText}>⌫</Text></TouchableOpacity></View>
     </View>
   );
@@ -87,7 +142,7 @@ const styles = StyleSheet.create({
  sectionHead:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:14},sectionTitle:{color:'#f2f4ff',fontSize:21,fontWeight:'800'},count:{color:'#67738f',fontSize:10,letterSpacing:1.4,fontWeight:'700'},
  card:{backgroundColor:'#0f1421',borderRadius:20,borderWidth:1,borderColor:'#202b42',padding:16,marginBottom:13},cardHead:{flexDirection:'row',alignItems:'center',gap:11},osIcon:{width:40,height:40,borderRadius:12,backgroundColor:'#1b2540',alignItems:'center',justifyContent:'center'},iconText:{color:'#9bacff',fontSize:18},vmName:{color:'#f2f4ff',fontSize:16,fontWeight:'800'},subtitle:{color:'#808da8',fontSize:12,marginTop:3},badge:{paddingVertical:5,paddingHorizontal:9,borderRadius:10,backgroundColor:'#202c45'},badgeText:{color:'#a5b5ff',fontSize:10,fontWeight:'700'},
  stats:{flexDirection:'row',marginTop:17,marginBottom:15},stat:{flex:1},statLabel:{color:'#6f7c98',fontSize:9,fontWeight:'700',letterSpacing:1},statValue:{color:'#e3e7ff',fontSize:13,fontWeight:'700',marginTop:5},
- imageRow:{borderTopWidth:1,borderTopColor:'#20283c',paddingTop:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10},imageLabel:{color:'#8c98b1',fontSize:11,flex:1},attachButton:{borderRadius:8,borderWidth:1,borderColor:'#35466e',paddingHorizontal:10,paddingVertical:6},attachText:{color:'#9cb0ff',fontSize:11,fontWeight:'700'},actions:{flexDirection:'row',gap:8,marginTop:13},startButton:{flex:1,backgroundColor:'#1a2644',borderWidth:1,borderColor:'#354a7b',borderRadius:11,alignItems:'center',paddingVertical:11},startText:{color:'#a5b6ff',fontWeight:'800',fontSize:12},deleteButton:{width:42,borderRadius:11,alignItems:'center',justifyContent:'center',backgroundColor:'#191b27'},deleteText:{color:'#818ba3'},
+ imageRow:{borderTopWidth:1,borderTopColor:'#20283c',paddingTop:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10},imageLabel:{color:'#8c98b1',fontSize:11,flex:1},attachButton:{borderRadius:8,borderWidth:1,borderColor:'#35466e',paddingHorizontal:10,paddingVertical:6},attachText:{color:'#9cb0ff',fontSize:11,fontWeight:'700'},actions:{flexDirection:'row',gap:8,marginTop:13},startButton:{flex:1,backgroundColor:'#1a2644',borderWidth:1,borderColor:'#354a7b',borderRadius:11,alignItems:'center',paddingVertical:11},startText:{color:'#a5b6ff',fontWeight:'800',fontSize:12},deleteButton:{width:42,borderRadius:11,alignItems:'center',justifyContent:'center',backgroundColor:'#191b27'},deleteText:{color:'#818ba3'},imageMeta:{color:'#697792',fontSize:10,marginTop:4},removeImageButton:{borderRadius:8,backgroundColor:'#241722',paddingHorizontal:9,paddingVertical:7},removeImageText:{color:'#d99aa9',fontSize:10,fontWeight:'700'},
  empty:{borderRadius:20,borderWidth:1,borderColor:'#222b40',borderStyle:'dashed',padding:24,alignItems:'center'},emptyIcon:{color:'#667bcb',fontSize:28},emptyTitle:{color:'#f0f2ff',fontWeight:'800',fontSize:16,marginTop:8},emptyDesc:{color:'#77839d',fontSize:12,lineHeight:18,textAlign:'center',marginTop:8},emptyButton:{marginTop:16,backgroundColor:'#536df1',paddingVertical:11,paddingHorizontal:18,borderRadius:11},
  notice:{backgroundColor:'#111623',borderColor:'#252e43',borderWidth:1,borderRadius:15,padding:14,marginTop:20},noticeTitle:{color:'#9aa9ff',fontSize:10,fontWeight:'800',letterSpacing:1.2},noticeText:{color:'#8994ad',fontSize:11,lineHeight:17,marginTop:7},footer:{textAlign:'center',color:'#47516b',fontSize:9,letterSpacing:1.2,marginTop:23},
  editButton:{paddingHorizontal:12,justifyContent:'center',borderRadius:10,backgroundColor:'#172035',borderWidth:1,borderColor:'#273652'},editText:{color:'#9aabff',fontSize:12,fontWeight:'700'},
