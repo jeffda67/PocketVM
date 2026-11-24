@@ -118,15 +118,71 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.page}>
-        {selectedTab === 'Machines' ? <>
-        <View style={styles.top}><View style={styles.logo}><Text style={styles.logoText}>P</Text></View><View style={{flex:1}}><Text style={styles.brand}>PocketVM</Text><Text style={styles.tagline}>Virtual machines. In your pocket.</Text></View><View style={styles.statusDot}/></View>
-        <View style={styles.hero}><Text style={styles.eyebrow}>VIRTUALIZATION LAB  /  PREVIEW</Text><Text style={styles.heroTitle}>Your machines.{ '\n'}Your rules.</Text><Text style={styles.heroDesc}>Manage your virtual machine profiles from one clean workspace.</Text><View style={styles.heroBottom}><View><Text style={styles.number}>{vms.length.toString().padStart(2,'0')}</Text><Text style={styles.heroLabel}>MACHINES</Text></View><TouchableOpacity style={styles.newButton} onPress={() => setShowCreate(true)}><Text style={styles.newButtonText}>＋  New VM</Text></TouchableOpacity></View>
-        <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Machines</Text><Text style={styles.count}>{vms.length} PROFILE{vms.length===1?'':'S'}</Text></View>
-        {vms.length === 0 ? <View style={styles.empty}><Text style={styles.emptyIcon}>⌘</Text><Text style={styles.emptyTitle}>No machines yet</Text><Text style={styles.emptyDesc}>Create your first VM profile to get your workspace started.</Text><TouchableOpacity style={styles.emptyButton} onPress={() => setShowCreate(true)}><Text style={styles.newButtonText}>Create first machine</Text></TouchableOpacity></View> : vms.map(vm => <Card key={vm.id} vm={vm}/>)}
-        <View style={styles.notice}><Text style={styles.noticeTitle}>ENGINE STATUS  ·  IN DEVELOPMENT</Text><Text style={styles.noticeText}>Profiles and local saving work in this prototype. Actual guest booting, hardware virtualization, and JIT are not connected yet.</Text></View>
-        <Text style={styles.footer}>POCKETVM  •  BUILD 0.2.0  •  EXPERIMENTAL</Text>
-      </>
-        : <View style={styles.settingsPage}><Text style={styles.settingsEyebrow}>POCKETVM</Text><Text style={styles.settingsTitle}>Settings</Text><View style={styles.settingsCard}><Text style={styles.settingsCardTitle}>Storage</Text><Text style={styles.settingsText}>VM profiles are stored locally. Imported images are copied to PocketVM's private app storage.</Text></View><View style={styles.settingsCard}><Text style={styles.settingsCardTitle}>VM engine</Text><Text style={styles.settingsText}>No virtualization backend is currently connected. Start buttons are placeholders.</Text></View><View style={styles.settingsCard}><Text style={styles.settingsCardTitle}>App version</Text><Text style={styles.settingsText}>PocketVM 0.2.0 · Experimental preview</Text></View><TouchableOpacity style={styles.resetButton} onPress={resetProfiles}><Text style={styles.resetText}>Delete all VM profiles</Text></TouchableOpacity></View>}
+        {selectedTab === 'Machines' ? (
+          <>
+            <View style={styles.top}>
+              <View style={styles.logo}><Text style={styles.logoText}>P</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.brand}>PocketVM</Text>
+                <Text style={styles.tagline}>Virtual machines. In your pocket.</Text>
+              </View>
+              <View style={styles.statusDot} />
+            </View>
+            <View style={styles.hero}>
+              <Text style={styles.eyebrow}>VIRTUALIZATION LAB  /  PREVIEW</Text>
+              <Text style={styles.heroTitle}>Your machines.{'\\n'}Your rules.</Text>
+              <Text style={styles.heroDesc}>Manage your virtual machine profiles from one clean workspace.</Text>
+              <View style={styles.heroBottom}>
+                <View>
+                  <Text style={styles.number}>{vms.length.toString().padStart(2, '0')}</Text>
+                  <Text style={styles.heroLabel}>MACHINES</Text>
+                </View>
+                <TouchableOpacity style={styles.newButton} onPress={() => setShowCreate(true)}>
+                  <Text style={styles.newButtonText}>＋  New VM</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>Machines</Text>
+              <Text style={styles.count}>{vms.length} PROFILE{vms.length === 1 ? '' : 'S'}</Text>
+            </View>
+            {vms.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyIcon}>⌘</Text>
+                <Text style={styles.emptyTitle}>No machines yet</Text>
+                <Text style={styles.emptyDesc}>Create your first VM profile to get your workspace started.</Text>
+                <TouchableOpacity style={styles.emptyButton} onPress={() => setShowCreate(true)}>
+                  <Text style={styles.newButtonText}>Create first machine</Text>
+                </TouchableOpacity>
+              </View>
+            ) : vms.map(vm => <Card key={vm.id} vm={vm} />)}
+            <View style={styles.notice}>
+              <Text style={styles.noticeTitle}>ENGINE STATUS  ·  IN DEVELOPMENT</Text>
+              <Text style={styles.noticeText}>Profiles and local saving work in this prototype. Actual guest booting, hardware virtualization, and JIT are not connected yet.</Text>
+            </View>
+            <Text style={styles.footer}>POCKETVM  •  BUILD 0.2.0  •  EXPERIMENTAL</Text>
+          </>
+        ) : (
+          <View style={styles.settingsPage}>
+            <Text style={styles.settingsEyebrow}>POCKETVM</Text>
+            <Text style={styles.settingsTitle}>Settings</Text>
+            <View style={styles.settingsCard}>
+              <Text style={styles.settingsCardTitle}>Storage</Text>
+              <Text style={styles.settingsText}>VM profiles are stored locally. Imported files are copied into PocketVM's private app storage with file details.</Text>
+            </View>
+            <View style={styles.settingsCard}>
+              <Text style={styles.settingsCardTitle}>VM engine</Text>
+              <Text style={styles.settingsText}>No virtualization backend is currently connected. Start buttons are placeholders.</Text>
+            </View>
+            <View style={styles.settingsCard}>
+              <Text style={styles.settingsCardTitle}>App version</Text>
+              <Text style={styles.settingsText}>PocketVM 0.2.0 · Experimental preview</Text>
+            </View>
+            <TouchableOpacity style={styles.resetButton} onPress={resetProfiles}>
+              <Text style={styles.resetText}>Delete all VM profiles</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
       <View style={styles.tabBar}><TouchableOpacity onPress={() => setSelectedTab('Machines')}><Text style={[styles.tab,selectedTab==='Machines'&&styles.activeTab]}>▣  Machines</Text></TouchableOpacity><TouchableOpacity onPress={() => setSelectedTab('Settings')}><Text style={[styles.tab,selectedTab==='Settings'&&styles.activeTab]}>⚙  Settings</Text></TouchableOpacity></View>
       <Modal visible={showCreate} animationType="slide" transparent onRequestClose={() => { setShowCreate(false); setEditingId(null); }}><View style={styles.modalShade}><ScrollView style={styles.modal}><Text style={styles.modalEyebrow}>CONFIGURE INSTANCE</Text><Text style={styles.modalTitle}>{editingId ? 'Edit VM' : 'Create VM'}</Text><Field label="MACHINE NAME" value={name} onChange={setName}/><Field label="GUEST OS" value={guest} onChange={setGuest}/><View style={styles.inputRow}><View style={{flex:1}}><Field label="RAM (MB)" value={ram} onChange={setRam} keyboard="numeric"/></View><View style={{flex:1}}><Field label="CPU CORES" value={cpu} onChange={setCpu} keyboard="numeric"/></View></View><Field label="DISK (GB)" value={disk} onChange={setDisk} keyboard="numeric"/><TouchableOpacity style={styles.createButton} onPress={createVM}><Text style={styles.createButtonText}>{editingId ? 'Save changes' : 'Create profile'}</Text></TouchableOpacity><TouchableOpacity onPress={() => { setShowCreate(false); setEditingId(null); }} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity></ScrollView></View></Modal>
