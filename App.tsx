@@ -83,7 +83,7 @@ export default function App() {
       };
       setVms(old => old.map(vm => vm.id === id ? { ...vm, image: imported } : vm));
       await removeStoredImage(previous);
-      Alert.alert('File imported', asset.name + '\\nA private copy and its file details are saved in PocketVM. Guest boot is not implemented yet.');
+      Alert.alert('File imported', asset.name + '\nA private copy and its file details are saved in PocketVM. Guest boot is not implemented yet.');
     } catch (error) {
       Alert.alert('Import failed', error instanceof Error ? error.message : 'Could not copy the selected file.');
     }
