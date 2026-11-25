@@ -60,7 +60,7 @@ A distribution IPA requires appropriate Apple signing/account setup. Cloud build
 
 1. Verify the updated app on a physical Android device and fix runtime issues.
 2. Build a reusable media library with multiple installer ISOs and writable disks, plus virtual-disk creation and resize.
-3. Build and benchmark a minimal native AArch64 QEMU interpreter for Android first, then assess the iOS port and signing constraints.
+3. Build and benchmark a minimal AArch64 QEMU interpreter in a Linux/Android development harness, then port the JIT-less runtime to iOS and validate its signing constraints.
 4. Connect the native engine contract to real prepare/start/pause/resume/stop operations and a serial console.
 5. Evaluate macOS guest support separately; do not promise it on iOS.
 
