@@ -7,10 +7,10 @@ Experimental iOS VM profile manager built with React Native, Expo and TypeScript
 - Dark neon-blue/purple PocketVM dashboard
 - Create VM profiles with guest OS, RAM, CPU and virtual disk size
 - Profiles saved locally with AsyncStorage
-- Import an ISO or virtual disk file into PocketVM's private app storage, with filename, extension, MIME type, size, and import time saved in the VM profile
-- Replace or remove imported files; deleting a VM also removes its managed image copy
+- Attach one installer ISO and one writable virtual disk separately to each VM profile; files are copied into PocketVM's private app storage with filename, format, MIME type, size, and import time
+- Replace or remove either attachment; profile edits preserve both, and legacy single-image profiles are migrated by file extension
 - Delete profiles
-- Clearly labels start/stop as not connected to a VM engine yet
+- Route start requests through an explicit native-engine contract that reports the runtime as unavailable instead of pretending a VM started
 
 > **Important:** This prototype is a profile manager only. It does not boot virtual machines, emulate hardware, or implement JIT. The actual native virtualization backend is a separate research/development milestone, especially for iOS.
 
@@ -58,11 +58,11 @@ A distribution IPA requires appropriate Apple signing/account setup. Cloud build
 
 ## Next milestones
 
-1. Verify the app on Android/Expo Go and fix issues.
-2. Improve image import to copy/manage guest image files safely and show metadata.
-3. Research native ARM64 Linux virtualization options and iOS entitlement/JIT limitations.
-4. Design a native engine interface and integrate only when a feasible backend is identified.
-5. Evaluate macOS guest support separately.
+1. Verify the updated app on a physical Android device and fix runtime issues.
+2. Build a reusable media library with multiple installer ISOs and writable disks, plus virtual-disk creation and resize.
+3. Build and benchmark a minimal native AArch64 QEMU interpreter for Android first, then assess the iOS port and signing constraints.
+4. Connect the native engine contract to real prepare/start/pause/resume/stop operations and a serial console.
+5. Evaluate macOS guest support separately; do not promise it on iOS.
 
 ## Project
 
