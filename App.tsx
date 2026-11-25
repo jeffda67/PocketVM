@@ -112,11 +112,14 @@ export default function App() {
       const target = folder + Date.now() + '_' + safeName;
       await FileSystem.copyAsync({ from: asset.uri, to: target });
       copiedUri = target;
+      const copiedInfo = await FileSystem.getInfoAsync(target);
+      if (!copiedInfo.exists || copiedInfo.isDirectory) throw new Error('PocketVM could not verify the copied file.');
+      if (asset.size && copiedInfo.size && asset.size !== copiedInfo.size) throw new Error('The copied file size does not match the selected file.');
       const previous = kind === 'installer' ? owner.bootIso : owner.diskImage;
       const imported: VMImage = {
         uri: target,
         name: asset.name,
-        size: asset.size,
+        size: copiedInfo.size ?? asset.size,
         mimeType: asset.mimeType,
         importedAt: new Date().toISOString(),
         format: extension,
@@ -215,7 +218,7 @@ export default function App() {
             </View>
             <View style={styles.hero}>
               <Text style={styles.eyebrow}>VIRTUALIZATION LAB  /  PREVIEW</Text>
-              <Text style={styles.heroTitle}>Your machines.{'\\n'}Your rules.</Text>
+              <Text style={styles.heroTitle}>Your machines.{'\n'}Your rules.</Text>
               <Text style={styles.heroDesc}>Manage your virtual machine profiles from one clean workspace.</Text>
               <View style={styles.heroBottom}>
                 <View>
@@ -257,7 +260,7 @@ export default function App() {
             </View>
             <View style={styles.settingsCard}>
               <Text style={styles.settingsCardTitle}>VM engine</Text>
-              <Text style={styles.settingsText}>No virtualization backend is currently connected. Start buttons are placeholders.</Text>
+              <Text style={styles.settingsText}>The native engine interface exists, but no QEMU runtime is installed yet. Starting a VM reports that it is unavailable.</Text>
             </View>
             <View style={styles.settingsCard}>
               <Text style={styles.settingsCardTitle}>App version</Text>
