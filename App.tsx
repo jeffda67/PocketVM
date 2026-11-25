@@ -114,7 +114,7 @@ export default function App() {
       copiedUri = target;
       const copiedInfo = await FileSystem.getInfoAsync(target);
       if (!copiedInfo.exists || copiedInfo.isDirectory) throw new Error('PocketVM could not verify the copied file.');
-      if (asset.size && copiedInfo.size && asset.size !== copiedInfo.size) throw new Error('The copied file size does not match the selected file.');
+      if (asset.size != null && copiedInfo.size != null && asset.size !== copiedInfo.size) throw new Error('The copied file size does not match the selected file.');
       const previous = kind === 'installer' ? owner.bootIso : owner.diskImage;
       const imported: VMImage = {
         uri: target,
