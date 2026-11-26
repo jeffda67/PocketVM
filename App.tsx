@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Modal, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -41,9 +41,63 @@ const migrateVM = (vm: VM): VM => {
   return migrated;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const normalizeStoredImage = (value: unknown): VMImage | string | undefined => {
+  if (typeof value === 'string') return value;
+  if (!isRecord(value)) return undefined;
+  if (typeof value.uri !== 'string' || typeof value.name !== 'string' ||
+      typeof value.format !== 'string' || typeof value.importedAt !== 'string') return undefined;
+  return {
+    uri: value.uri,
+    name: value.name,
+    format: value.format,
+    importedAt: value.importedAt,
+    ...(typeof value.size === 'number' && Number.isFinite(value.size) ? { size: value.size } : {}),
+    ...(typeof value.mimeType === 'string' ? { mimeType: value.mimeType } : {}),
+  };
+};
+
+const normalizeStoredVM = (value: unknown): VM => {
+  if (!isRecord(value) ||
+      (typeof value.id !== 'string' && typeof value.id !== 'number') ||
+      typeof value.name !== 'string' || !value.name.trim() ||
+      typeof value.os !== 'string' || !value.os.trim() ||
+      typeof value.ram !== 'number' || !Number.isFinite(value.ram) || value.ram < 256 ||
+      typeof value.cpu !== 'number' || !Number.isInteger(value.cpu) || value.cpu < 1 ||
+      typeof value.disk !== 'number' || !Number.isFinite(value.disk) || value.disk < 1) {
+    throw new Error('A saved VM profile contains invalid settings.');
+  }
+  const bootIso = normalizeStoredImage(value.bootIso);
+  const diskImage = normalizeStoredImage(value.diskImage);
+  const legacyImage = normalizeStoredImage(value.image);
+  if ((value.bootIso != null && !bootIso) || (value.diskImage != null && !diskImage) || (value.image != null && !legacyImage)) {
+    throw new Error('A saved VM profile contains invalid imported-file metadata.');
+  }
+  const vm: VM = {
+    id: String(value.id), name: value.name, os: value.os,
+    ram: value.ram, cpu: value.cpu, disk: value.disk,
+    status: value.status === 'Running' ? 'Running' : 'Stopped',
+    ...(bootIso ? { bootIso } : {}),
+    ...(diskImage ? { diskImage } : {}),
+    ...(legacyImage ? { image: legacyImage } : {}),
+  };
+  return migrateVM(vm);
+};
+
+const readStoredVMs = async (): Promise<VM[]> => {
+  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  if (raw == null) return [];
+  const parsed: unknown = JSON.parse(raw);
+  if (!Array.isArray(parsed)) throw new Error('Saved VM data is not a profile list.');
+  return parsed.map(normalizeStoredVM);
+};
+
 export default function App() {
   const [vms, setVms] = useState<VM[]>(initial);
   const [loaded, setLoaded] = useState(false);
+  const [storageLoadError, setStorageLoadError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('My Linux VM');
@@ -55,19 +109,33 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then(raw => {
-        if (!active || !raw) return;
-        const parsed: unknown = JSON.parse(raw);
-        if (Array.isArray(parsed)) setVms(parsed.map(item => migrateVM(item as VM)));
-      })
-      .catch(() => Alert.alert('Storage error', 'PocketVM could not read saved VM profiles.'))
+    readStoredVMs()
+      .then(profiles => { if (active) { setVms(profiles); setStorageLoadError(null); } })
+      .catch(() => { if (active) setStorageLoadError('PocketVM could not safely read your saved VM profiles. Your saved data has not been overwritten.'); })
       .finally(() => { if (active) setLoaded(true); });
     return () => { active = false; };
   }, []);
-  useEffect(() => { if (loaded) AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(vms)).catch(() => Alert.alert('Save error', 'Could not save VM profiles.')); }, [vms, loaded]);
+  useEffect(() => {
+    // Never replace existing storage when hydration failed; an empty fallback would erase profiles.
+    if (loaded && !storageLoadError) {
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(vms)).catch(() => Alert.alert('Save error', 'Could not save VM profiles.'));
+    }
+  }, [vms, loaded, storageLoadError]);
+
+  const retryStorageLoad = async () => {
+    setLoaded(false);
+    try {
+      setVms(await readStoredVMs());
+      setStorageLoadError(null);
+    } catch {
+      setStorageLoadError('PocketVM still cannot safely read your saved VM profiles. Your saved data has not been overwritten.');
+    } finally {
+      setLoaded(true);
+    }
+  };
 
   const createVM = () => {
+    if (!loaded || storageLoadError) return;
     const parsedRam = Number(ram), parsedCpu = Number(cpu), parsedDisk = Number(disk);
     if (!name.trim() || !guest.trim() || !Number.isFinite(parsedRam) || parsedRam < 256 || !Number.isInteger(parsedCpu) || parsedCpu < 1 || !Number.isFinite(parsedDisk) || parsedDisk < 1) {
       Alert.alert('Check your settings', 'Enter a name and guest OS, RAM of at least 256 MB, at least 1 CPU core, and disk size of at least 1 GB.'); return;
@@ -90,6 +158,7 @@ export default function App() {
     }
   };
   const importImage = async (id: string, kind: MediaKind) => {
+    if (!loaded || storageLoadError) return;
     let copiedUri: string | undefined;
     try {
       const owner = vms.find(vm => vm.id === id);
@@ -206,7 +275,20 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.page}>
-        {selectedTab === 'Machines' ? (
+        {!loaded ? (
+          <View style={styles.loadState}>
+            <ActivityIndicator color="#9bacff" size="large" />
+            <Text style={styles.loadTitle}>Loading saved machines…</Text>
+          </View>
+        ) : storageLoadError ? (
+          <View style={styles.loadState}>
+            <Text style={styles.loadTitle}>Saved profiles could not be opened</Text>
+            <Text style={styles.loadMessage}>{storageLoadError}</Text>
+            <TouchableOpacity style={styles.emptyButton} onPress={retryStorageLoad}>
+              <Text style={styles.newButtonText}>Retry loading</Text>
+            </TouchableOpacity>
+          </View>
+        ) : selectedTab === 'Machines' ? (
           <>
             <View style={styles.top}>
               <View style={styles.logo}><Text style={styles.logoText}>P</Text></View>
@@ -287,6 +369,7 @@ const styles = StyleSheet.create({
  card:{backgroundColor:'#0f1421',borderRadius:20,borderWidth:1,borderColor:'#202b42',padding:16,marginBottom:13},cardHead:{flexDirection:'row',alignItems:'center',gap:11},osIcon:{width:40,height:40,borderRadius:12,backgroundColor:'#1b2540',alignItems:'center',justifyContent:'center'},iconText:{color:'#9bacff',fontSize:18},vmName:{color:'#f2f4ff',fontSize:16,fontWeight:'800'},subtitle:{color:'#808da8',fontSize:12,marginTop:3},badge:{paddingVertical:5,paddingHorizontal:9,borderRadius:10,backgroundColor:'#202c45'},badgeText:{color:'#a5b5ff',fontSize:10,fontWeight:'700'},
  stats:{flexDirection:'row',marginTop:17,marginBottom:15},stat:{flex:1},statLabel:{color:'#6f7c98',fontSize:9,fontWeight:'700',letterSpacing:1},statValue:{color:'#e3e7ff',fontSize:13,fontWeight:'700',marginTop:5},
  imageRow:{borderTopWidth:1,borderTopColor:'#20283c',paddingTop:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:10},imageLabel:{color:'#8c98b1',fontSize:11,flex:1},attachButton:{borderRadius:8,borderWidth:1,borderColor:'#35466e',paddingHorizontal:10,paddingVertical:6},attachText:{color:'#9cb0ff',fontSize:11,fontWeight:'700'},actions:{flexDirection:'row',gap:8,marginTop:13},startButton:{flex:1,backgroundColor:'#1a2644',borderWidth:1,borderColor:'#354a7b',borderRadius:11,alignItems:'center',paddingVertical:11},startText:{color:'#a5b6ff',fontWeight:'800',fontSize:12},deleteButton:{width:42,borderRadius:11,alignItems:'center',justifyContent:'center',backgroundColor:'#191b27'},deleteText:{color:'#818ba3'},imageMeta:{color:'#697792',fontSize:10,marginTop:4},mediaKind:{color:'#8292bd',fontSize:9,fontWeight:'800',letterSpacing:1,marginBottom:4},removeImageButton:{borderRadius:8,backgroundColor:'#241722',paddingHorizontal:9,paddingVertical:7},removeImageText:{color:'#d99aa9',fontSize:10,fontWeight:'700'},
+ loadState:{minHeight:360,alignItems:'center',justifyContent:'center',padding:28},loadTitle:{color:'#f0f2ff',fontWeight:'800',fontSize:16,marginTop:14,textAlign:'center'},loadMessage:{color:'#8995ae',fontSize:12,lineHeight:19,textAlign:'center',marginTop:10},
  empty:{borderRadius:20,borderWidth:1,borderColor:'#222b40',borderStyle:'dashed',padding:24,alignItems:'center'},emptyIcon:{color:'#667bcb',fontSize:28},emptyTitle:{color:'#f0f2ff',fontWeight:'800',fontSize:16,marginTop:8},emptyDesc:{color:'#77839d',fontSize:12,lineHeight:18,textAlign:'center',marginTop:8},emptyButton:{marginTop:16,backgroundColor:'#536df1',paddingVertical:11,paddingHorizontal:18,borderRadius:11},
  notice:{backgroundColor:'#111623',borderColor:'#252e43',borderWidth:1,borderRadius:15,padding:14,marginTop:20},noticeTitle:{color:'#9aa9ff',fontSize:10,fontWeight:'800',letterSpacing:1.2},noticeText:{color:'#8994ad',fontSize:11,lineHeight:17,marginTop:7},footer:{textAlign:'center',color:'#47516b',fontSize:9,letterSpacing:1.2,marginTop:23},
  editButton:{paddingHorizontal:12,justifyContent:'center',borderRadius:10,backgroundColor:'#172035',borderWidth:1,borderColor:'#273652'},editText:{color:'#9aabff',fontSize:12,fontWeight:'700'},
