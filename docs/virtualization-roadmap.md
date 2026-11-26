@@ -1,6 +1,6 @@
 # PocketVM virtualization roadmap
 
-**Research checked:** 2026-11-24  
+**Research checked:** 2026-11-26  
 **Status:** Architecture research plus a UI-facing engine contract. PocketVM does not currently boot a guest OS.
 
 ## Executive decision
@@ -26,6 +26,16 @@ For iOS, the realistic baseline is a **JIT-less interpreter/emulation mode**, no
 QEMU's TCG is a dynamic translator that translates guest instruction blocks to host instructions. That is the fast JIT-style path; it is not automatically available in every sandbox. QEMU's documentation describes the translator and generated translation blocks: https://www.qemu.org/docs/master/devel/tcg.html.
 
 UTM is a useful implementation reference because its iOS architecture uses a custom ARM64 TCTI/JIT-less path, while its macOS architecture can use QEMU with Hypervisor.framework. UTM's notes also describe an iOS-specific process model: QEMU runs its main loop on a pthread, rather than assuming it can spawn arbitrary child processes. PocketVM should study the current upstream and UTM fork diffs before choosing code to reuse.
+
+### JIT-less QEMU choices: TCI versus TCTI
+
+These are related but distinct backends, and PocketVM must not treat them as interchangeable:
+
+- **TCI (Tiny Code Interpreter)** is QEMU's generic interpreter for TCG operations. QEMU documents enabling it at configure time with `--enable-tcg-interpreter`. It is a useful portable correctness baseline, but QEMU's own notes warn that it is slow and not widely tested for every host/guest combination: https://github.com/qemu/qemu/blob/master/tcg/tci/README.
+- **TCTI** is a separate threaded-code approach. UTM's architecture documentation identifies its custom ARM64 TCTI backend as a JIT-less iOS feature. A QEMU developer RFC dated 2025-07-22 describes the AArch64 TCTI backend as precompiled gadgets threaded together at runtime and says the patch was ported from QEMU 5.2 to 10.0, with a possible future rebase to mainline: https://github.com/utmapp/UTM/blob/main/Documentation/Architecture.md and https://lists.nongnu.org/archive/html/qemu-devel/2025-07/msg05392.html.
+- UTM's iOS development guide exposes separate `ios-arm64` and `ios-tci-arm64` dependency targets and builds the SE scheme separately. This confirms that its JIT-less distribution is a distinct native build configuration, not a runtime toggle: https://github.com/utmapp/UTM/blob/main/Documentation/iOSDevelopment.md.
+
+**PocketVM consequence:** first validate the guest/device model with ordinary QEMU TCG on Fedora/Linux. Then benchmark generic TCI as a correctness baseline and evaluate UTM's TCTI patchset for the iOS release path. Pin the exact QEMU revision and patchset; do not assume TCTI is present in an arbitrary upstream QEMU release. A physical iPhone benchmark and native build are required before claiming usable performance.
 
 ### macOS guests
 
