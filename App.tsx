@@ -11,6 +11,9 @@ type VM = { id: string; name: string; os: string; ram: number; cpu: number; disk
 const STORAGE_KEY = 'pocketvm.profiles.v1';
 const DISK_IMAGE_FORMATS = new Set(['qcow2', 'img', 'raw', 'vhd', 'vhdx', 'vdi', 'vmdk']);
 const vmEngine = createUnavailableVMEngine(Platform.OS);
+// Conservative first-boot defaults for interpreter-backed mobile emulation.
+const DEFAULT_RAM_MB = Platform.OS === 'ios' ? 256 : 512;
+const DEFAULT_CPU_CORES = 1;
 const initial: VM[] = [];
 
 const imageUri = (image?: VMImage | string) => typeof image === 'string' ? image : image?.uri;
@@ -103,8 +106,8 @@ export default function App() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('My Linux VM');
-  const [ram, setRam] = useState('2048');
-  const [cpu, setCpu] = useState('2');
+  const [ram, setRam] = useState(String(DEFAULT_RAM_MB));
+  const [cpu, setCpu] = useState(String(DEFAULT_CPU_CORES));
   const [disk, setDisk] = useState('16');
   const [guest, setGuest] = useState('Linux ARM64');
   const [selectedTab, setSelectedTab] = useState('Machines');
@@ -191,7 +194,7 @@ export default function App() {
     }
     const vm: VM = { id: editingId ?? Date.now().toString(), name: name.trim(), os: guest.trim(), ram: parsedRam, cpu: parsedCpu, disk: parsedDisk, status: 'Stopped' };
     setVms(old => editingId ? old.map(item => item.id === editingId ? { ...vm, bootIso: item.bootIso, diskImage: item.diskImage } : item) : [vm, ...old]);
-    setShowCreate(false); setEditingId(null); setName('My Linux VM'); setRam('2048'); setCpu('2'); setDisk('16'); setGuest('Linux ARM64');
+    setShowCreate(false); setEditingId(null); setName('My Linux VM'); setRam(String(DEFAULT_RAM_MB)); setCpu(String(DEFAULT_CPU_CORES)); setDisk('16'); setGuest('Linux ARM64');
   };
   const editVM = (vm: VM) => { setEditingId(vm.id); setName(vm.name); setGuest(vm.os); setRam(String(vm.ram)); setCpu(String(vm.cpu)); setDisk(String(vm.disk)); setShowCreate(true); };
   const removeStoredImage = async (image?: VMImage | string) => {
@@ -418,7 +421,7 @@ export default function App() {
             </View>
             <View style={styles.settingsCard}>
               <Text style={styles.settingsCardTitle}>VM engine</Text>
-              <Text style={styles.settingsText}>The native engine interface exists, but no QEMU runtime is installed yet. Start now checks engine capabilities, prepares an AArch64 Linux configuration, and then requests the VM lifecycle start. No guest is reported as running until a real engine is installed.</Text>
+              <Text style={styles.settingsText}>No QEMU runtime is installed yet. The first target is a headless AArch64 Linux guest with a serial console and one vCPU. PocketVM uses conservative starter RAM defaults (256 MB on iOS, 512 MB elsewhere); actual safe memory limits depend on device headroom and must be measured. Start checks capabilities and prepares the guest configuration, but no VM can boot until a native engine is integrated.</Text>
             </View>
             <View style={styles.settingsCard}>
               <Text style={styles.settingsCardTitle}>App version</Text>
