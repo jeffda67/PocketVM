@@ -98,6 +98,8 @@ export default function App() {
   const [vms, setVms] = useState<VM[]>(initial);
   const [loaded, setLoaded] = useState(false);
   const [storageLoadError, setStorageLoadError] = useState<string | null>(null);
+  const [checkingMedia, setCheckingMedia] = useState(false);
+  const [mediaAudit, setMediaAudit] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('My Linux VM');
@@ -131,6 +133,53 @@ export default function App() {
       setStorageLoadError('PocketVM still cannot safely read your saved VM profiles. Your saved data has not been overwritten.');
     } finally {
       setLoaded(true);
+    }
+  };
+
+  const checkMediaFiles = async () => {
+    if (!loaded || storageLoadError || checkingMedia) return;
+    const byUri = new Map<string, VMImage | string>();
+    vms.forEach(vm => {
+      [vm.bootIso, vm.diskImage, vm.image].forEach(image => {
+        const uri = imageUri(image);
+        if (uri && image) byUri.set(uri, image);
+      });
+    });
+    const attachments = Array.from(byUri.entries());
+    if (attachments.length === 0) {
+      setMediaAudit('No installer ISOs or virtual disks are attached to your VM profiles.');
+      return;
+    }
+    setCheckingMedia(true);
+    setMediaAudit(null);
+    let found = 0;
+    let missing = 0;
+    let mismatched = 0;
+    let unreadable = 0;
+    let totalBytes = 0;
+    try {
+      for (const [uri, attachment] of attachments) {
+        try {
+          const info = await FileSystem.getInfoAsync(uri);
+          if (!info.exists || info.isDirectory) {
+            missing += 1;
+            continue;
+          }
+          found += 1;
+          if (typeof info.size === 'number') totalBytes += info.size;
+          const expectedSize = typeof attachment === 'string' ? undefined : attachment.size;
+          if (expectedSize != null && typeof info.size === 'number' && expectedSize !== info.size) {
+            mismatched += 1;
+          }
+        } catch {
+          unreadable += 1;
+        }
+      }
+      setMediaAudit(
+        `Checked ${attachments.length} unique file(s): ${found} found, ${missing} missing, ${mismatched} size mismatch(es), ${unreadable} could not be inspected. Verified file size: ${formatBytes(totalBytes)}.`,
+      );
+    } finally {
+      setCheckingMedia(false);
     }
   };
 
@@ -240,6 +289,25 @@ export default function App() {
   ]);
   const toggleVM = async (vm: VM) => {
     try {
+      const guest = vm.os.toLowerCase();
+      if (!guest.includes('linux') || !/(arm64|aarch64)/.test(guest)) {
+        throw new Error('The first planned engine target is Linux ARM64. Change this VM profile to Linux ARM64 before attempting to start it.');
+      }
+      const capabilities = await vmEngine.getCapabilities();
+      if (!capabilities.available) throw new Error(capabilities.reason);
+      if (!capabilities.guestArchitectures.includes('aarch64')) {
+        throw new Error('The installed engine does not support AArch64 guests.');
+      }
+      await vmEngine.prepare({
+        vmId: vm.id,
+        name: vm.name,
+        guestArchitecture: 'aarch64',
+        memoryMiB: vm.ram,
+        vcpus: vm.cpu,
+        diskCapacityGiB: vm.disk,
+        ...(imageUri(vm.bootIso) ? { installerIsoUri: imageUri(vm.bootIso) } : {}),
+        ...(imageUri(vm.diskImage) ? { diskImageUri: imageUri(vm.diskImage) } : {}),
+      });
       await vmEngine.start(vm.id);
     } catch (error) {
       Alert.alert('VM engine not connected', error instanceof Error ? error.message : 'No native VM engine is installed.');
@@ -341,8 +409,16 @@ export default function App() {
               <Text style={styles.settingsText}>VM profiles are stored locally. Installer ISOs and writable disk images have separate attachments; imported files are copied into PocketVM's private app storage with file details.</Text>
             </View>
             <View style={styles.settingsCard}>
+              <Text style={styles.settingsCardTitle}>Media integrity</Text>
+              <Text style={styles.settingsText}>Check that attached installer and disk files still exist in app storage and that their saved sizes match the files on disk.</Text>
+              <TouchableOpacity style={styles.auditButton} onPress={checkMediaFiles} disabled={checkingMedia}>
+                <Text style={styles.auditButtonText}>{checkingMedia ? 'Checking files…' : 'Check imported files'}</Text>
+              </TouchableOpacity>
+              {mediaAudit ? <Text style={styles.auditResult}>{mediaAudit}</Text> : null}
+            </View>
+            <View style={styles.settingsCard}>
               <Text style={styles.settingsCardTitle}>VM engine</Text>
-              <Text style={styles.settingsText}>The native engine interface exists, but no QEMU runtime is installed yet. Starting a VM reports that it is unavailable.</Text>
+              <Text style={styles.settingsText}>The native engine interface exists, but no QEMU runtime is installed yet. Start now checks engine capabilities, prepares an AArch64 Linux configuration, and then requests the VM lifecycle start. No guest is reported as running until a real engine is installed.</Text>
             </View>
             <View style={styles.settingsCard}>
               <Text style={styles.settingsCardTitle}>App version</Text>
@@ -373,7 +449,7 @@ const styles = StyleSheet.create({
  empty:{borderRadius:20,borderWidth:1,borderColor:'#222b40',borderStyle:'dashed',padding:24,alignItems:'center'},emptyIcon:{color:'#667bcb',fontSize:28},emptyTitle:{color:'#f0f2ff',fontWeight:'800',fontSize:16,marginTop:8},emptyDesc:{color:'#77839d',fontSize:12,lineHeight:18,textAlign:'center',marginTop:8},emptyButton:{marginTop:16,backgroundColor:'#536df1',paddingVertical:11,paddingHorizontal:18,borderRadius:11},
  notice:{backgroundColor:'#111623',borderColor:'#252e43',borderWidth:1,borderRadius:15,padding:14,marginTop:20},noticeTitle:{color:'#9aa9ff',fontSize:10,fontWeight:'800',letterSpacing:1.2},noticeText:{color:'#8994ad',fontSize:11,lineHeight:17,marginTop:7},footer:{textAlign:'center',color:'#47516b',fontSize:9,letterSpacing:1.2,marginTop:23},
  editButton:{paddingHorizontal:12,justifyContent:'center',borderRadius:10,backgroundColor:'#172035',borderWidth:1,borderColor:'#273652'},editText:{color:'#9aabff',fontSize:12,fontWeight:'700'},
- settingsPage:{padding:4},settingsEyebrow:{color:'#94a6ff',fontSize:10,letterSpacing:2,fontWeight:'800',marginBottom:10},settingsTitle:{color:'#f4f6ff',fontSize:30,fontWeight:'900',marginBottom:20},settingsCard:{backgroundColor:'#111725',borderColor:'#26314a',borderWidth:1,borderRadius:16,padding:17,marginBottom:12},settingsCardTitle:{color:'#eef1ff',fontSize:15,fontWeight:'800',marginBottom:8},settingsText:{color:'#8995ae',fontSize:12,lineHeight:19},resetButton:{borderColor:'#60384a',borderWidth:1,borderRadius:12,padding:14,alignItems:'center',marginTop:8},resetText:{color:'#e49aaa',fontSize:12,fontWeight:'800'},
+ settingsPage:{padding:4},settingsEyebrow:{color:'#94a6ff',fontSize:10,letterSpacing:2,fontWeight:'800',marginBottom:10},settingsTitle:{color:'#f4f6ff',fontSize:30,fontWeight:'900',marginBottom:20},settingsCard:{backgroundColor:'#111725',borderColor:'#26314a',borderWidth:1,borderRadius:16,padding:17,marginBottom:12},settingsCardTitle:{color:'#eef1ff',fontSize:15,fontWeight:'800',marginBottom:8},settingsText:{color:'#8995ae',fontSize:12,lineHeight:19},auditButton:{alignSelf:'flex-start',marginTop:12,backgroundColor:'#1a2644',borderWidth:1,borderColor:'#354a7b',borderRadius:10,paddingHorizontal:13,paddingVertical:10},auditButtonText:{color:'#a5b6ff',fontSize:11,fontWeight:'800'},auditResult:{color:'#aab6d1',fontSize:11,lineHeight:17,marginTop:10},resetButton:{borderColor:'#60384a',borderWidth:1,borderRadius:12,padding:14,alignItems:'center',marginTop:8},resetText:{color:'#e49aaa',fontSize:12,fontWeight:'800'},
  tabBar:{position:'absolute',bottom:0,left:0,right:0,backgroundColor:'#0b101b',borderTopWidth:1,borderTopColor:'#1b2333',paddingBottom:18,paddingTop:13,flexDirection:'row',justifyContent:'space-around'},tab:{color:'#64708b',fontSize:12,fontWeight:'700'},activeTab:{color:'#9bacff'},
  modalShade:{flex:1,backgroundColor:'#000a',justifyContent:'flex-end'},modal:{backgroundColor:'#101625',borderTopLeftRadius:25,borderTopRightRadius:25,padding:24,paddingTop:30},modalEyebrow:{color:'#92a4ff',fontSize:10,letterSpacing:2,fontWeight:'800'},modalTitle:{fontSize:27,color:'#f3f5ff',fontWeight:'900',marginTop:8,marginBottom:20},field:{marginBottom:16},fieldLabel:{color:'#7d8ba8',fontSize:10,fontWeight:'800',letterSpacing:1,marginBottom:7},fieldInput:{borderWidth:1,borderColor:'#27334c',backgroundColor:'#0a0f19',borderRadius:12,padding:13,color:'#f1f3ff',fontSize:14},inputRow:{flexDirection:'row',gap:12},createButton:{backgroundColor:'#667dff',borderRadius:13,padding:15,alignItems:'center',marginTop:8},createButtonText:{color:'#fff',fontWeight:'900'},cancel:{padding:15,alignItems:'center'},cancelText:{color:'#8792ad',fontWeight:'700'}
 });
