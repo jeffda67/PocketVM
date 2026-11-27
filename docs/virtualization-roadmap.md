@@ -35,7 +35,17 @@ These are related but distinct backends, and PocketVM must not treat them as int
 - **TCTI** is a separate threaded-code approach. UTM's architecture documentation identifies its custom ARM64 TCTI backend as a JIT-less iOS feature. A QEMU developer RFC dated 2025-07-22 describes the AArch64 TCTI backend as precompiled gadgets threaded together at runtime and says the patch was ported from QEMU 5.2 to 10.0, with a possible future rebase to mainline: https://github.com/utmapp/UTM/blob/main/Documentation/Architecture.md and https://lists.nongnu.org/archive/html/qemu-devel/2025-07/msg05392.html.
 - UTM's iOS development guide exposes separate `ios-arm64` and `ios-tci-arm64` dependency targets and builds the SE scheme separately. This confirms that its JIT-less distribution is a distinct native build configuration, not a runtime toggle: https://github.com/utmapp/UTM/blob/main/Documentation/iOSDevelopment.md.
 
-**PocketVM consequence:** first validate the guest/device model with ordinary QEMU TCG on Fedora/Linux. Then benchmark generic TCI as a correctness baseline and evaluate UTM's TCTI patchset for the iOS release path. Pin the exact QEMU revision and patchset; do not assume TCTI is present in an arbitrary upstream QEMU release. A physical iPhone benchmark and native build are required before claiming usable performance.
+**PocketVM consequence:** validate the guest/device model with ordinary QEMU TCG on Fedora/Linux, but do not make generic TCI the intended iOS performance path. For iOS, the stronger target is a pinned TCTI-capable QEMU fork with the required in-process/shared-library iOS patches. Keep generic TCI as a portable correctness fallback. Pin the exact QEMU revision and patchset; do not assume TCTI or the iOS shared-library options exist in arbitrary upstream QEMU releases.
+
+### Shipping iOS ARM64 reference checked 2026-11-27
+
+A current published implementation removes much of the guesswork: Handset's technical documentation describes a shipping iOS app running an **AArch64 Linux 6.19.8 guest** on QEMU's `virt` machine using a UTM QEMU fork tagged `v10.0.2-utm` and its TCTI backend. The documented design uses one Cortex-A53 vCPU, virtio block/network/9p, a PL011 serial console, and a separate QMP control socket. QEMU runs in-process on a dedicated pthread; the UI communicates over Unix socketpairs. The fork adds `--enable-shared-lib` and `--enable-tcg-threaded-interpreter`; ordinary upstream QEMU is not a drop-in replacement for that iOS build. See [Handset's published emulation architecture](https://www.gedpk3.com/software/handset/docs/architecture/).
+
+The same reference reports substantial trade-offs: its device-specific guest RAM ceilings range from 256 MB to 1 GB, and its measured TCTI CPU workload was 5.6x slower than Mac M4 TCG+JIT while boot was 2.8x slower. It reports that additional emulated AArch64 vCPUs can reduce performance because of emulator-side atomic synchronization. These are that product's measurements and limits, not universal iOS guarantees, but they justify starting conservatively with one vCPU and low RAM, then measuring on actual hardware.
+
+[tctiSH](https://github.com/tctiSH/tctiSH) is another useful public implementation reference for the TCTI approach and a forked QEMU build. Its documented build requires Nix, Xcode, an Apple container runtime, and recursive submodules; its app is primarily aimed at x86_64 guests, so it is not a ready-made AArch64 PocketVM module. Treat both projects as architecture/build references, not code to copy without a component-by-component license review. The tctiSH top-level MIT license does not replace the licenses of its QEMU fork and other submodules.
+
+**Revised iOS prototype target:** one AArch64 vCPU, conservative RAM (PocketVM defaults to 256 MB on iOS), QEMU `virt`, qcow2/virtio block, PL011 serial terminal, QMP lifecycle control, and optional libslirp networking after a basic boot succeeds. No graphical desktop, USB passthrough, or background execution in the first proof of concept.
 
 ### macOS guests
 
@@ -54,7 +64,7 @@ These are related but distinct backends, and PocketVM must not treat them as int
 
 ## First guest target
 
-Start with a small AArch64 Linux image on QEMU's generic virt machine, using a serial console and virtio storage. Avoid a full graphical desktop initially. The first acceptance test should be: create a profile, import a known ARM64 Linux image, boot to a login prompt, send keyboard input, shut down cleanly, and boot again with persistent disk state.
+Start with a small AArch64 Linux image on QEMU's generic virt machine, using one vCPU, conservative RAM, a serial console, and virtio storage. Avoid a full graphical desktop initially. The first acceptance test should be: create a profile, import a known ARM64 Linux kernel/rootfs and writable qcow2 disk, boot to a login prompt, send keyboard input, shut down cleanly, and boot again with persistent disk state.
 
 ## Milestones
 
