@@ -47,7 +47,7 @@ These are related but distinct backends, and PocketVM must not treat them as int
 
 1. **React Native UI:** VM profiles, image library, console/viewer, and user-facing status.
 2. **Persistent VM model:** stable VM ID, guest architecture, RAM, vCPU count, disk capacity, boot media references, and engine-specific configuration. Keep file metadata separate from the engine's runtime state.
-3. **Native engine contract:** `src/engine/VMEngine.ts` now defines getCapabilities, prepare, start, pause, resume, stop, and dispose. The current adapter is deliberately unavailable and reports that no runtime is installed; a real native adapter and structured progress/error events remain future work.
+3. **Native engine contract:** `src/engine/VMEngine.ts` defines getCapabilities, prepare, start, pause, resume, stop, and dispose. The Machines UI now checks engine availability and AArch64 support, builds a typed Linux ARM64 configuration from the saved VM profile and attached media URIs, then calls prepare before start. The current adapter is deliberately unavailable and reports that no runtime is installed; a real native adapter and structured progress/error events remain future work.
 4. **Linux/Android development adapter:** first prove the minimal QEMU system-emulation core in a buildable Linux/Android harness, with one AArch64 guest, serial console, and one virtio block device. Keep GUI acceleration and networking out of the first milestone. This gives the project a testable native core without requiring a Mac.
 5. **iOS adapter:** add a separate Swift/Objective-C++ bridge around the same minimal QEMU core. Use the interpreter/JIT-less path as the baseline; do not assume Hypervisor.framework or runtime code generation is available. Validate the native build through EAS/cloud macOS runners and real iPhone testing.
 6. **Image store:** the UI now keeps one installer ISO reference separate from one writable-disk reference per VM, copies each into app-private storage, and cleans up replaced/removed files after saving the new profile state. A reusable cross-VM media library, multiple drives, disk creation/resize, and snapshots remain future work.
@@ -62,6 +62,8 @@ Start with a small AArch64 Linux image on QEMU's generic virt machine, using a s
 - [x] Copy imported media into app-private storage and persist file metadata.
 - [x] Separate each VM's installer ISO from its writable virtual-disk attachment, including migration of older single-image profiles.
 - [x] Add a typed native engine lifecycle interface and an explicit unavailable adapter; keep it disconnected until a real native build exists.
+- [x] Route the Start action through engine capability checks and a complete AArch64 Linux prepare configuration before requesting start.
+- [x] Add a Settings media-integrity audit for missing attachments and saved-versus-actual file-size mismatches.
 - [ ] Add a reusable cross-VM media library, multiple drive slots, and virtual-disk creation/resize.
 - [ ] Build and benchmark a minimal AArch64 QEMU interpreter in a Linux/Android harness, then validate the JIT-less iOS port on a device.
 - [ ] Add serial console and lifecycle handling, then storage/network devices.
